@@ -63,8 +63,8 @@ public struct ContinuousGene<R: FloatingPoint, E: GeneticEnvironment>: Gene, Equ
 		switch R.self {
 		case is Float.Type:
 			return Float(num) as! R
-		case is Float80.Type:
-			return Float80(num) as! R
+//		case is Float80.Type:
+//			return Float80(num) as! R
 		case is Double.Type:
 			return num as! R
 		default:
