@@ -29,8 +29,9 @@ public protocol EvolutionWrapper {
 	/// The fitness evaluator that the GA uses.
 	var fitnessEvaluator: Eval { get }
 	/// Runs evolution on the given start population, for a maximum number of epochs.
-	func evolve(population: Population<Eval.G>, configuration: EvolutionAlgorithmConfiguration)
-	
+//	func evolve(population: Population<Eval.G>, configuration: EvolutionAlgorithmConfiguration)
+    func evolve(population: Population<Eval.G>, configuration: EvolutionAlgorithmConfiguration) async
+
 	/// The functions that are called after each epoch.
 	var afterEachEpochFns: [(Int) -> ()] { get set }
 	/// Calls the passed function after each epoch. The function takes the completed generation's number.

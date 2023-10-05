@@ -13,7 +13,7 @@ final public class LivingTradeGene<GeneType: TradeGeneType>: Gene {
 	public typealias Environment = LivingTradeEnvironment
 	
 	/// The sampling template that's used for the gene types.
-	public var template: TradeGeneTemplate<GeneType>
+//	public var template: TradeGeneTemplate<GeneType>
 	
 	/// The gene's type marker.
 	public var geneType: GeneType
@@ -22,70 +22,95 @@ final public class LivingTradeGene<GeneType: TradeGeneType>: Gene {
 	/// Owned references to child genes.
 	public var children: [LivingTradeGene]
 	
-	/// A coefficient that isn't modified during evolution. It's a placeholder
-	/// that can be used later with CMA-ES.
-	public var coefficient: Double?
-	/// Whether the gene takes a coefficient.
-	public var allowsCoefficient: Bool
-	
 	/// Creates a new trade gene.
-	public init(_ template: TradeGeneTemplate<GeneType>, geneType: GeneType, parent: LivingTradeGene?, children: [LivingTradeGene], allowsCoefficient: Bool = true) {
-		self.template = template
+    public init(geneType: GeneType, parent: LivingTradeGene?, children: [LivingTradeGene]) {
 		self.geneType = geneType
 		self.parent = parent
 		self.children = children
-		self.allowsCoefficient = allowsCoefficient
 	}
 	
 	public func mutate(rate: Double, environment: Environment) {
+        guard parent != nil else { return }
 		guard Double.fastRandomUniform() < rate else { return }
 		
+        // TODO: remove
+        if parent == nil, !geneType.isTopLevel {
+                print("bad root detected... \(geneType)")
+        }
+
+//        try? LivingTradeGenome.verifyIntegrity(gene: self, isRoot: false)
 		performGeneTypeSpecificMutations(rate: rate, environment: environment)
-		
+//        try? LivingTradeGenome.verifyIntegrity(gene: self, isRoot: false)
+
 		var madeStructuralMutation = false
 		
 		// Deletion mutations.
+        // Replace non-leaf types with something else, hopefully shorter
 		if Double.fastRandomUniform() < environment.structuralMutationDeletionRate {
-			if !children.isEmpty {
-				children = []
-				geneType = template.leafTypes.randomElement()!
+            if !geneType.isLeafType, 
+            parent != nil
+            {
+                let newGene = Self.randomGene(parent: parent, depth: 1)
+//                print("Swapping: \(geneType) \nto: \(newGene.geneType)")
+//                print("...Deietion mutation \(geneType.name) changed to \(newGene.geneType.name)")
+                geneType = newGene.geneType // hopefully a leaf type, or at least a simpler tree
+                children = newGene.children
+                for child in children {
+                    child.parent = self
+                }
 				madeStructuralMutation = true
+//                try? LivingTradeGenome.verifyIntegrity(gene: parent!, isRoot: false)
 			}
 		}
 		
 		// Addition mutations.
+        // Replace leaf types with something else, hopefully longer
 		if Double.fastRandomUniform() < environment.structuralMutationAdditionRate {
-			if children.isEmpty {
-				geneType = template.nonLeafTypes.randomElement()!
-				if geneType.isBinaryType {
-					children = [
-						LivingTradeGene(template, geneType: template.leafTypes.randomElement()!, parent: self, children: []),
-						LivingTradeGene(template, geneType: template.leafTypes.randomElement()!, parent: self, children: [])
-					]
-				} else if geneType.isUnaryType {
-					children = [LivingTradeGene(template, geneType: template.leafTypes.randomElement()!, parent: self, children: [])]
-				} else if geneType.isLeafType {
-					// nop
-				} else {
-					fatalError()
-				}
+            if geneType.isLeafType {
+                let newGene = Self.randomGene(parent: parent, depth: 5)
+//                print("...Addition mutation: \(geneType.name) changed to \(newGene.geneType.name)")
+                geneType = newGene.geneType
+                children = newGene.children
+                // TODO: it seems wrong that randomGene doesn't already set this for us
+                for child in children {
+                    child.parent = self
+                }
 				madeStructuralMutation = true
+//                try? LivingTradeGenome.verifyIntegrity(gene: parent!, isRoot: false)
 			}
 		}
 		
 		// Attempt to mutate type, maintaining the same structure, only if a
 		// structural mutation has not already been made.
 		if !madeStructuralMutation {
-			if geneType.isBinaryType {
-				geneType = template.binaryTypes.filter { $0 != geneType }.randomElement()!
-			} else if geneType.isUnaryType {
-				geneType = template.unaryTypes.filter { $0 != geneType }.randomElement() ?? template.unaryTypes.first!
-			} else if geneType.isLeafType {
-				geneType = template.leafTypes.filter { $0 != geneType }.randomElement()!
-			} else {
-				fatalError()
-			}
+//            if parent == nil {
+//                print("modifying parent \(geneType)")
+//            }
+            let newGeneType = GeneType.compatibleAlternate(to: geneType)
+            if parent == nil {
+                let debugString = "\(newGeneType)"
+                if !debugString.contains("long") && !debugString.contains("short") {
+                    print("modified parent \(geneType)\n ....to \(newGeneType)")
+                }
+            }
+//            print("...Replacement mutation from \(geneType.name) to \(newGeneType.name)")
+            geneType = newGeneType
+            madeStructuralMutation = true
+//            try? LivingTradeGenome.verifyIntegrity(gene: parent!, isRoot: false)
+
+            
+// TODO: Keep children, but replace gene type with compatible remplacement
+//            if geneType.isBinaryType {
+//				geneType = template.binaryTypes.filter { $0 != geneType }.randomElement()!
+//			} else if geneType.isUnaryType {
+//				geneType = template.unaryTypes.filter { $0 != geneType }.randomElement() ?? template.unaryTypes.first!
+//			} else if geneType.isLeafType {
+//				geneType = template.leafTypes.filter { $0 != geneType }.randomElement()!
+//			} else {
+//				fatalError()
+//			}
 		}
+//        try? LivingTradeGenome.verifyIntegrity(gene: self, isRoot: false)
 	}
 	
 	// MARK: - Enumeration, tree operations, and book-keeping.
@@ -109,7 +134,7 @@ final public class LivingTradeGene<GeneType: TradeGeneType>: Gene {
 	
 	/// Creates a deep copy of the gene.
 	public func copy(withParent: LivingTradeGene? = nil) -> LivingTradeGene {
-		let newGene = LivingTradeGene(template, geneType: geneType, parent: withParent, children: [], allowsCoefficient: allowsCoefficient)
+		let newGene = LivingTradeGene(geneType: geneType, parent: withParent, children: [])
 		newGene.children = children.map { $0.copy(withParent: newGene) }
 		return newGene
 	}
@@ -126,29 +151,23 @@ final public class LivingTradeGene<GeneType: TradeGeneType>: Gene {
 	
 	/// Coding keys for `Codable`.
 	enum CodingKeys: String, CodingKey {
-		case template
+//		case template
 		case geneType
 		case children
-		case coefficient
-		case allowsCoefficient
 	}
 	
 	public func encode(to encoder: Encoder) throws {
 		var container = encoder.container(keyedBy: CodingKeys.self)
-		try container.encode(template, forKey: .template)
+//		try container.encode(template, forKey: .template)
 		try container.encode(geneType, forKey: .geneType)
 		try container.encode(children, forKey: .children)
-		try container.encode(coefficient, forKey: .coefficient)
-		try container.encode(allowsCoefficient, forKey: .allowsCoefficient)
 	}
 	
 	public init(from decoder: Decoder) throws {
 		let values = try decoder.container(keyedBy: CodingKeys.self)
-		template = try values.decode(type(of: template), forKey: .template)
+//		template = try values.decode(type(of: template), forKey: .template)
 		geneType = try values.decode(GeneType.self, forKey: .geneType)
 		children = try values.decode(type(of: children), forKey: .children)
-		coefficient = try values.decode(type(of: coefficient), forKey: .coefficient)
-		allowsCoefficient = try values.decode(type(of: allowsCoefficient), forKey: .allowsCoefficient)
 		
 		// Rebuild parent relationships.
 		recursivelyResetParents()
@@ -162,3 +181,5 @@ extension LivingTradeGene {
 		// Default implementation is intentionally empty.
 	}
 }
+
+

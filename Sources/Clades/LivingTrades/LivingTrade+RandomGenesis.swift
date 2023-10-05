@@ -9,30 +9,53 @@
 import Foundation
 
 extension LivingTradeGene {
-	
-	/// Returns a random, recursively built trade subject to certain constraints.
-	public static func random(onlyNonLeaf: Bool = false, depth: Int = 1, parent: LivingTradeGene? = nil, template: TradeGeneTemplate<GeneType>) -> LivingTradeGene {
-		let randomType = onlyNonLeaf ? template.nonLeafTypes.randomElement()! : template.allTypes.randomElement()!
-		let gene = LivingTradeGene(template, geneType: randomType, parent: parent, children: [])
-		if randomType.isBinaryType {
-			if depth == 1 {
-				gene.children = [
-					LivingTradeGene(template, geneType: template.leafTypes.randomElement()!, parent: gene, children: []),
-					LivingTradeGene(template, geneType: template.leafTypes.randomElement()!, parent: gene, children: [])
-				]
-			} else {
-				gene.children = [
-					random(onlyNonLeaf: onlyNonLeaf, depth: depth - 1, parent: gene, template: template),
-					random(onlyNonLeaf: onlyNonLeaf, depth: depth - 1, parent: gene, template: template)
-				]
-			}
-		} else if randomType.isUnaryType {
-			gene.children = [LivingTradeGene(template, geneType: template.leafTypes.randomElement()!, parent: gene, children: [])]
-		} else if randomType.isLeafType {
-			// nop
-		} else {
-			fatalError()
-		}
-		return gene
-	}
+    /**
+     Build a random gene, given certain constraints
+     
+     - Parameter parent: the gene's parent, or nil if it's the topLevel
+     - Parameter depth: default 1; the minimum depth of tree to generate.  Nil selects a gene, but leaves children empty.
+     - Parameter allowNumericConstants: default true; set to false to avoid avoid binOps with two constant children
+     - Returns: new randomly created gene
+
+     */
+    /// Returns a random, recursively built tree subject to certain constraints.
+    public static func randomGene(parent: LivingTradeGene? = nil,
+                                  depth: Int? = 1,
+                                  allowNumericConstant: Bool = true) -> LivingTradeGene
+    {
+        let parentGene = parent?.geneType as? GeneType
+        var genePool = GeneType.genePool(for: parentGene) 
+        if !allowNumericConstant {
+            genePool = genePool.filter { !$0.isNumericConstant }
+        }
+        // prevent not not, - -, or abs(abs)
+        if let parentGene, parentGene.isUnaryType {
+            genePool = genePool.filter { !$0.isUnaryType }
+        }
+
+        let leafTypes = genePool.filter { $0.isLeafType }
+        if depth != nil, depth! < 2 && leafTypes.count > 0 {
+            genePool = leafTypes
+        }
+
+        let randomType = genePool.randomElement()!
+        let gene = LivingTradeGene(geneType: randomType, parent: parent, children: [])
+        guard let depth else { return gene }
+        var hasConstantSibling = false
+        let childCount = randomType.childCount
+        for _ in 0 ..< randomType.childCount {
+            let child = randomGene(parent: gene, depth: depth - 1,
+                                   allowNumericConstant: !hasConstantSibling)
+            gene.children.append(child)
+            
+            if child.parent != gene {
+                print("what the actual fuck?")
+            }
+            if child.geneType.isNumericConstant {
+                hasConstantSibling = true
+            }
+        }
+        return gene
+    }
+
 }

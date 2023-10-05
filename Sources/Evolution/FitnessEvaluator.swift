@@ -31,6 +31,14 @@ public protocol SynchronousFitnessEvaluator: FitnessEvaluator {
 	mutating func fitnessFor(organism: Organism<G>, solutionCallback: (G, Double) -> ()) -> FitnessResult
 }
 
+/// Implemented by types that can evaluate fitnesses synchronously, but use async/await
+public protocol SwiftAsyncFitnessEvaluator: FitnessEvaluator {
+    /// Returns the fitness value for a given organism. Larger fitnesses are better.
+    /// - Parameter organism: The organism to evaluate.
+    /// - Parameter solutionCallback: A function that can be called when a stopping condition is reached.
+    func fitnessFor(organism: Organism<G>, solutionCallback: (G, Double) -> ()) async -> FitnessResult
+}
+
 
 /// Implemented by types that can evaluate fitnesses asynchronously.
 public protocol AsynchronousFitnessEvaluator: FitnessEvaluator {

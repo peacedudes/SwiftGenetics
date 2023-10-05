@@ -9,7 +9,7 @@ final class GeneticAlgorithmIntegrationTests: XCTestCase {
 	/// to the fitness for each consecutive pair of sorted values.
 	struct SortedFitnessEvaluator: SynchronousFitnessEvaluator {
 		typealias G = NeuroevolutionString
-		mutating func fitnessFor(organism: Organism<G>, solutionCallback: (G, Double) -> ()) -> FitnessResult {
+        func fitnessFor(organism: Organism<G>, solutionCallback: (G, Double) -> ()) -> FitnessResult {
 			var fitness = 0.0
 			for i in 0..<(organism.genotype.genes.count - 1) {
 				let left = organism.genotype.genes[i]

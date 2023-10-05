@@ -22,7 +22,7 @@ import Foundation
 /// Encapsulates a generic genetic algorithm that performs synchronous fitness
 /// evaluations concurrently. The fitness evaluator needs to be thread-safe.
 final public class ConcurrenSwiftAsyncEvaluationGA<Eval: SwiftAsyncFitnessEvaluator, LogDelegate: EvolutionLoggingDelegate> : EvolutionWrapper where Eval.G == LogDelegate.G {
-
+  
     public var fitnessEvaluator: Eval
     public var afterEachEpochFns = [(Int) -> ()]()
 
@@ -35,7 +35,7 @@ final public class ConcurrenSwiftAsyncEvaluationGA<Eval: SwiftAsyncFitnessEvalua
         self.loggingDelegate = loggingDelegate
     }
 
-    public func evolve(population: Population<Eval.G>, configuration: EvolutionAlgorithmConfiguration) {
+    public func evolve(population: Population<Eval.G>, configuration: EvolutionAlgorithmConfiguration) async {
         for i in 0..<configuration.maxEpochs {
             // Log start of epoch.
             loggingDelegate.evolutionStartingEpoch(i)
@@ -46,19 +46,26 @@ final public class ConcurrenSwiftAsyncEvaluationGA<Eval: SwiftAsyncFitnessEvalua
 
             // Calculate fitnesses concurrently.
             
-            await withTaskGroup(of: (organism: Organism<G>, fitness: FitnessResult).Self) { taskGroup in
-                for organism in population.organisms {
-                    guard organism.fitness == nil else { continue }
-                    
-                    let fitnessResult = await self.fitnessEvaluator.fitnessFor(organism: organism, solutionCallback: { solution, fitness in
-                        self.loggingDelegate.evolutionFoundSolution(solution, fitness: fitness)
-                    })
-                    return (organism, fitnessResult)
+            if #available(macOS 10.15, *) {
+                await withTaskGroup(of: Void.self) { taskGroup in
+                    for organism in population.organisms {
+                        guard organism.fitness == nil else { continue }
+                        taskGroup.addTask {
+                            //                    let fitnessResult =
+                            organism.fitness = await self.fitnessEvaluator.fitnessFor(organism: organism, solutionCallback: { solution, fitness in
+                                self.loggingDelegate.evolutionFoundSolution(solution, fitness: fitness)
+                            }).fitness
+                            //                    return (organism, fitnessResult)
+                        }
+                    }
+                    for await _ in taskGroup {
+                        //                    result.organism.fitness = result.fitness.fitnessResult.fitness
+                        
+                    }
                 }
-                for await result in taskGroup {
-                    result.organism.fitness = result.fitness.fitnessResult.fitness
-
-                }
+            } else {
+                fatalError("This macOS version doesn't suport concurrency enough")
+                // Fallback on earlier versions
             }
 
             // Print epoch statistics.
